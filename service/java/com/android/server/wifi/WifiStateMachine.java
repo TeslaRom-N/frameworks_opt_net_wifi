@@ -570,7 +570,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     // Provide packet filter capabilities to ConnectivityService.
     private final NetworkMisc mNetworkMisc = new NetworkMisc();
-    private static final int WIFI_AUTO_CONNECT_TYPE_AUTO = 0;
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -1144,14 +1143,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 },
                 new IntentFilter(Intent.ACTION_LOCKED_BOOT_COMPLETED));
 
-         mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
-                Settings.Global.WIFI_AUTO_CONNECT_TYPE), false,
-                new ContentObserver(getHandler()) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                           checkAndSetAutoConnection();
-                    }
-        });
         PowerManager powerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getName());
 
@@ -3627,16 +3618,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         stopRssiMonitoringOffload();
 
         clearCurrentConfigBSSID("handleNetworkDisconnect");
-         if (mContext.getResources().getBoolean(R.bool.wifi_autocon)
-                && !shouldAutoConnect()) {
-            /*
-             * The following logic shall address the requirement for the DUT to
-             * not reconnect to the last connected network when the Auto
-             * Connect is disabled. This asks for the user prompt for any
-             * connection attempt (as per the requirement)
-             */
-            disableLastNetwork();
-        }
+
         stopIpManager();
 
         /* Reset data structures */
@@ -4481,10 +4463,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mWifiConfigManager.mEnableVerboseLogging.get() > 0) {
                         enableVerboseLogging(mWifiConfigManager.mEnableVerboseLogging.get());
                     }
-                    if (mContext.getResources().getBoolean(R.bool.wifi_autocon)
-                            && !shouldAutoConnect()) {
-                        mWifiConfigManager.disableAllNetworksNative();
-                    }
                     initializeWpsDetails();
                     mWifiNative.enableTdlsExtControl();
                     mWifiNative.disableScanOffload();
@@ -4547,7 +4525,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             setRandomMacOui();
             mWifiNative.enableAutoConnect(false);
-            checkAndSetAutoConnection();
             mCountryCode.setReadyForChange(true);
         }
 
@@ -4911,14 +4888,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_START_DRIVER:
                     if (mOperationalMode == CONNECT_MODE) {
-                        if (mContext.getResources().getBoolean(R.bool.wifi_autocon)
-                                && !shouldAutoConnect()) {
-                            if (DBG) {
-                                logd("Auto connect disabled, skip enable networks");
-                            }
-                        } else {
-                             mWifiConfigManager.enableAllNetworks();
-                        }
+                        mWifiConfigManager.enableAllNetworks();
                     }
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
@@ -5134,14 +5104,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             mWifiConfigManager.loadAndEnableAllNetworks();
                             mWifiP2pChannel.sendMessage(CMD_ENABLE_P2P);
                         } else {
-                            if (mContext.getResources().getBoolean(R.bool.wifi_autocon)
-                                   && !shouldAutoConnect()) {
-                                if (DBG) {
-                                    logd("No auto, skip enable networks on mode change");
-                                }
-                            } else {
-                                mWifiConfigManager.enableAllNetworks();
-                            }
+                            mWifiConfigManager.enableAllNetworks();
                         }
 
                         // Loose last selection choice since user toggled WiFi
@@ -7193,20 +7156,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         testNetworkDisconnectCounter, 0), 15000);
             }
 
-            if (!getEnableAutoJoinWhenAssociated()) {
-                if (mContext.getResources().getBoolean(R.bool.wifi_autocon)
-                       && !shouldAutoConnect()) {
-                    if (DBG) {
-                        logd("Auto connect disabled, skip enable networks");
-                    }
-                } else {
-                    // Reenable all networks, allow for hidden networks to be scanned
-                    mWifiConfigManager.enableAllNetworks();
-                }
-            } else {
-                // Reenable all networks, allow for hidden networks to be scanned
-                mWifiConfigManager.enableAllNetworks();
-            }
+            // Reenable all networks, allow for hidden networks to be scanned
+            mWifiConfigManager.enableAllNetworks();
 
             mLastDriverRoamAttempt = 0;
             mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
@@ -8393,42 +8344,5 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return currentConfig.SSID;
         }
         return null;
-    }
-
-    boolean shouldAutoConnect() {
-         int autoConnectPolicy = Settings.Global.getInt(
-                 mContext.getContentResolver(),
-                 Settings.Global.WIFI_AUTO_CONNECT_TYPE,
-                 WIFI_AUTO_CONNECT_TYPE_AUTO);
-         if (DBG) {
-             if (autoConnectPolicy == WIFI_AUTO_CONNECT_TYPE_AUTO) {
-                 Log.d(TAG, "Wlan connection type is auto, should auto connect");
-             } else {
-                 Log.d(TAG, "Shouldn't auto connect");
-             }
-         }
-         return (autoConnectPolicy == WIFI_AUTO_CONNECT_TYPE_AUTO);
-     }
-
-    void disableLastNetwork() {
-        if (getCurrentState() != mSupplicantStoppingState) {
-            mWifiConfigManager.disableNetwork(mLastNetworkId);
-        }
-    }
-
-    void checkAndSetAutoConnection() {
-        if (mContext.getResources().getBoolean(R.bool.wifi_autocon)) {
-            if (shouldAutoConnect()){
-                mWifiQualifiedNetworkSelector.skipQualifiedNetworkSelectionForAutoConnect(false);
-            } else {
-                mWifiQualifiedNetworkSelector.skipQualifiedNetworkSelectionForAutoConnect(true);
-                /*
-                 * This is AutoConnect -> Manual selection case
-                 * Device should not auto connect to network, hence
-                 * disable supplicants auto connection ability.
-                */
-                mWifiNative.enableAutoConnect(false);
-            }
-        }
     }
 }
