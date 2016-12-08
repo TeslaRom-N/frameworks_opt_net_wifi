@@ -8387,43 +8387,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return null;
     }
 
-    boolean shouldAutoConnect() {
-         int autoConnectPolicy = Settings.Global.getInt(
-                 mContext.getContentResolver(),
-                 Settings.Global.WIFI_AUTO_CONNECT_TYPE,
-                 WIFI_AUTO_CONNECT_TYPE_AUTO);
-         if (DBG) {
-             if (autoConnectPolicy == WIFI_AUTO_CONNECT_TYPE_AUTO) {
-                 Log.d(TAG, "Wlan connection type is auto, should auto connect");
-             } else {
-                 Log.d(TAG, "Shouldn't auto connect");
-             }
-         }
-         return (autoConnectPolicy == WIFI_AUTO_CONNECT_TYPE_AUTO);
-     }
-
-    void disableLastNetwork() {
-        if (getCurrentState() != mSupplicantStoppingState) {
-            mWifiConfigManager.disableNetwork(mLastNetworkId);
-        }
-    }
-
-    void checkAndSetAutoConnection() {
-        if (mContext.getResources().getBoolean(R.bool.wifi_autocon)) {
-            if (shouldAutoConnect()){
-                mWifiQualifiedNetworkSelector.skipQualifiedNetworkSelectionForAutoConnect(false);
-            } else {
-                mWifiQualifiedNetworkSelector.skipQualifiedNetworkSelectionForAutoConnect(true);
-                /*
-                 * This is AutoConnect -> Manual selection case
-                 * Device should not auto connect to network, hence
-                 * disable supplicants auto connection ability.
-                */
-                mWifiNative.enableAutoConnect(false);
-            }
-        }
-    }
-
     /**
      * Check if there is any connection request for WiFi network.
      * Note, caller of this helper function must acquire mWifiReqCountLock.
