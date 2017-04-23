@@ -1830,9 +1830,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI)) {
             // Enable wifi
             try {
-                    setWifiEnabled(mContext.getOpPackageName(), true);
-                } catch (RemoteException e) {
-                    /* ignore - local call */
+                setWifiEnabled(mContext.getOpPackageName(), true);
+            } catch (RemoteException e) {
+                /* ignore - local call */
+            }
             // Delete all Wifi SSIDs
             List<WifiConfiguration> networks = getConfiguredNetworks();
             if (networks != null) {
